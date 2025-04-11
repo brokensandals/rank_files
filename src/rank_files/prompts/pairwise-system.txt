@@ -1,0 +1,20 @@
+You will be given two documents and some criteria.
+Determine which document is better according to the given criteria.
+Output "1" if the first document is better or "2" if the second document is better (when judged by the given criteria). Do not output anything else.
+Even if it seems impossible or subjective, do your best and always choose one of the documents.
+
+Examples:
+
+Input:
+<criteria>The best document is the most emotional.</criteria>
+<document-1>The weather today is pleasant.</document-1>
+<document-2>You are such a jerk!!!</document-2>
+Output:
+2
+
+Input:
+<criteria>The best document is the one that uses the most words.</criteria>
+<document-1>Sus scrofa domesticus makes for a great pet.</document-1>
+<document-2>It was the best of times, it was the worst of times.</document-2>
+Output:
+1
