@@ -7,7 +7,9 @@ authors = [
     { name = "Jacob Williams", email = "jacobaw@gmail.com" }
 ]
 requires-python = ">=3.13.2"
-dependencies = []
+dependencies = [
+    "pytest>=8.3.5",
+]
 
 [project.scripts]
 rank-files = "rank_files:main"
