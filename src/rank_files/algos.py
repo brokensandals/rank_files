@@ -1,5 +1,6 @@
 from functools import total_ordering
 from typing import Self, Optional
+from tqdm import tqdm
 import math
 
 
@@ -13,19 +14,25 @@ class ComparisonSpy:
         return False
     
     def __lt__(self, other) -> bool:
-        self.tracker.total += 1
+        self.tracker.inc()
         return self.val < other.val
 
 
 class ComparisonTracker:
-    def __init__(self) -> None:
+    def __init__(self, pbar: Optional[tqdm] = None) -> None:
         self.total = 0
+        self.pbar = pbar
     
     def wrap(self, items: list) -> list[ComparisonSpy]:
         return [ComparisonSpy(x, self) for x in items]
     
     def unwrap(self, wrapped: list[ComparisonSpy]) -> list:
         return [x.val for x in wrapped]
+    
+    def inc(self) -> None:
+        self.total += 1
+        if self.pbar is not None:
+            self.pbar.update(1)
 
 
 class Node:

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from hashlib import sha256
+from typing import Self
 
 
 class Document(ABC):
@@ -15,10 +16,27 @@ class Document(ABC):
     def read_bytes(self) -> bytes:
         ...
     
+    def __eq__(self, other: Self) -> bool:
+        return self.read_bytes() == other.read_bytes()
+    
     def hash(self) -> str:
         if self.cached_hash is None:
             self.cached_hash = sha256(self.read_bytes()).hexdigest()
         return self.cached_hash
+
+
+class WrappedDocument(Document):
+    def __init__(self, wrapped: Document) -> None:
+        self.wrapped = wrapped
+    
+    def read_text(self) -> str:
+        return self.wrapped.read_text()
+    
+    def read_bytes(self) -> str:
+        return self.wrapped.read_bytes()
+    
+    def __str__(self) -> str:
+        return str(self.wrapped)
 
 
 class FileDocument(Document):

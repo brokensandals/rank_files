@@ -9,7 +9,17 @@ mark_anthropic = pytest.mark.skipif("not config.getoption('anthropic')")
 def test_fake_ranker():
     doc1 = StrDocument("foo")
     doc2 = StrDocument("bar")
-    assert FakeRanker().choose_better("just pick one", doc1, doc2) in [doc1, doc2]
+    assert FakeRanker().choose_better("just pick one", doc1, doc2) is doc2
+
+
+def test_wrap_for_pairwise_comparison():
+    doc1 = StrDocument("foo")
+    doc2 = StrDocument("bar")
+    docs = FakeRanker().wrap_for_pairwise_comparison("just pick one", [doc1, doc2])
+    assert docs[0].wrapped is doc1
+    assert docs[1].wrapped is doc2
+    assert docs[1] > docs[0]
+    assert docs[0] < docs[1]
 
 
 @mark_ollama

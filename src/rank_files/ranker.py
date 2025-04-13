@@ -1,11 +1,11 @@
 from anthropic import Anthropic
 from abc import ABC, abstractmethod
 from enum import StrEnum
+from functools import total_ordering
 from pathlib import Path
-from rank_files.document import Document
-from typing import Optional
+from rank_files.document import Document, WrappedDocument
+from typing import Optional, Self
 import os
-import random
 import ollama
 
 
@@ -64,18 +64,37 @@ def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str)
     raise InvalidLlmResponseException(f"Model was instructed to respond '1' for {doc1} or '2' for {doc2} but got: {resp_content}")
 
 
+@total_ordering
+class PairwiseRankingDocument(WrappedDocument):
+    def __init__(self, wrapped: Document, ranker: "Ranker", criteria: str) -> None:
+        super().__init__(wrapped)
+        self.ranker = ranker
+        self.criteria = criteria
+    
+    def __lt__(self, other: Self) -> bool:
+        choice = self.ranker.choose_better(self.criteria, self, other)
+        if choice is self:
+            return False
+        return True
+
+
 class Ranker(ABC):
     @abstractmethod
-    def choose_better(self, doc1: Document, doc2: Document) -> Document:
-        ...
-
-
-class FakeRanker:
     def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
-        return random.choice([doc1, doc2])
+        ...
+    
+    def wrap_for_pairwise_comparison(self, criteria: str, docs: list[Document]) -> list[PairwiseRankingDocument]:
+        return [PairwiseRankingDocument(doc, self, criteria) for doc in docs]
 
 
-class OllamaRanker:
+class FakeRanker(Ranker):
+    def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+        if doc1.read_text() < doc2.read_text():
+            return doc1
+        return doc2
+
+
+class OllamaRanker(Ranker):
     def __init__(self, model: str, client: Optional[ollama.Client] = None) -> None:
         self.model = model
         self.client = ollama.Client() if client is None else client
@@ -103,7 +122,7 @@ class OllamaRanker:
         return extract_pairwise_response(doc1, doc2, resp.message.content)
 
 
-class AnthropicRanker:
+class AnthropicRanker(Ranker):
     def __init__(self, model: str, client: Optional[Anthropic] = None) -> None:
         self.model = model
         self.client = Anthropic() if client is None else client

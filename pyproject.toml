@@ -12,10 +12,11 @@ dependencies = [
     "hypothesis>=6.131.0",
     "ollama>=0.4.7",
     "pytest>=8.3.5",
+    "tqdm>=4.67.1",
 ]
 
 [project.scripts]
-rank-files = "rank_files:main"
+rank-files = "rank_files.cli:main"
 
 [build-system]
 requires = ["hatchling"]
