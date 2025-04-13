@@ -27,6 +27,7 @@ def main() -> None:
         docs = tracker.wrap(docs)
         docs = tournament(args.top_k, docs)
         docs = tracker.unwrap(docs)
+        docs = ranker.unwrap(docs)
         if not args.quiet:
             print(f"(Total comparisons: {tracker.total})")
         for doc in docs:

@@ -11,7 +11,7 @@ class ComparisonSpy:
         self.tracker = tracker
     
     def __eq__(self, other) -> bool:
-        return False
+        return self.val == other.val
     
     def __lt__(self, other) -> bool:
         self.tracker.inc()

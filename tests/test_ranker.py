@@ -20,6 +20,7 @@ def test_wrap_for_pairwise_comparison():
     assert docs[1].wrapped is doc2
     assert docs[1] > docs[0]
     assert docs[0] < docs[1]
+    assert FakeRanker().unwrap(sorted(docs)) == [doc1, doc2]
 
 
 @mark_ollama

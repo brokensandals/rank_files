@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from functools import total_ordering
 from pathlib import Path
-from rank_files.document import Document, WrappedDocument
+from rank_files.document import Document
 from typing import Optional, Self
 import os
 import ollama
@@ -65,15 +65,18 @@ def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str)
 
 
 @total_ordering
-class PairwiseRankingDocument(WrappedDocument):
+class PairwiseWrapper:
     def __init__(self, wrapped: Document, ranker: "Ranker", criteria: str) -> None:
-        super().__init__(wrapped)
+        self.wrapped = wrapped
         self.ranker = ranker
         self.criteria = criteria
     
+    def __eq__(self, other: Self) -> bool:
+        return self.wrapped == other.wrapped
+
     def __lt__(self, other: Self) -> bool:
-        choice = self.ranker.choose_better(self.criteria, self, other)
-        if choice is self:
+        choice = self.ranker.choose_better(self.criteria, self.wrapped, other.wrapped)
+        if choice is self.wrapped:
             return False
         return True
 
@@ -83,8 +86,11 @@ class Ranker(ABC):
     def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         ...
     
-    def wrap_for_pairwise_comparison(self, criteria: str, docs: list[Document]) -> list[PairwiseRankingDocument]:
-        return [PairwiseRankingDocument(doc, self, criteria) for doc in docs]
+    def wrap_for_pairwise_comparison(self, criteria: str, docs: list[Document]) -> list[PairwiseWrapper]:
+        return [PairwiseWrapper(doc, self, criteria) for doc in docs]
+    
+    def unwrap(self, items: list[PairwiseWrapper]) -> list[Document]:
+        return [item.wrapped for item in items]
 
 
 class FakeRanker(Ranker):
