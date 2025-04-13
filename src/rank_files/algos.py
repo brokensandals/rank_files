@@ -81,7 +81,7 @@ def tournament(k: int, items: list) -> list:
 
 
 def tournament_estimated_comparisons(k: int, n: int) -> int:
-    if n == 0 or k == 0:
+    if n <= 1 or k == 0:
         return 0
     k = min(k, n)
-    return n-1 + math.ceil(k*(math.log2(n)))
+    return n-1 + math.ceil((k-1)*(math.log2(n)))
