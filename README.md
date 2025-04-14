@@ -2,7 +2,7 @@
 
 Given a set of files, this tool finds the top _k_ according to any given criteria, using an LLM as the judge.
 
-It's intended for **small datasets** and **small _k_**; e.g., finding the top 10 out of a few hundred files. Comparisons are done **pairwise**: the LLM is given two documents at a time and asked to pick the better one according to the specified criteria. A single-elimination tournament is used to determine the overall "best" file, with additional rounds to determine the runners-up. For a dataset of _n_ files, the tool has to invoke the LLM approximately `(n-1) + (k-1)*log_2(n)` times.
+It's intended for **small datasets** and **small _k_**; e.g., finding the top 10 out of a few hundred files. Comparisons are done **pairwise**: the LLM is given two documents at a time and asked to pick the better one according to the specified criteria. A single-elimination tournament is used to determine the overall "best" file, with additional rounds to determine the runners-up. For a dataset of _n_ files, the tool has to invoke the LLM approximately `(n-1) + (k-1)*log_2(n)` times. (This algorithm was chosen over some others that have better asymptotic runtime complexity, because of its greater efficiency when _k_ and _n_ are small.)
 
 The supported model APIs are Ollama and Anthropic (Claude).
 
@@ -11,6 +11,14 @@ Current **limitations** / known issues:
 - Only text files are supported (no images/PDFs/etc)
 - Models that always output chain-of-thought, e.g. DeepSeek-R1, are not supported
 - Improperly formatted model output (which is especially likely to be an issue with small models) results in an unrecoverable error
+
+# Installation
+
+You should have Python 3.13.2 or greater installed, then:
+
+```
+pip install rank-files
+```
 
 # Usage
 
