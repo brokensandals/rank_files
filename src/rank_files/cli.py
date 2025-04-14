@@ -3,12 +3,13 @@ from pathlib import Path
 from rank_files.cache import default_cache
 from rank_files.document import FileDocument
 from rank_files.ranker import build_ranker
-from rank_files.algos import tournament, tournament_estimated_comparisons, ComparisonTracker
+from rank_files.algos import tournament, tournament_estimated_comparisons, ComparisonTracker, MaxComparisonsExceededError
 from tqdm import tqdm
 import os
 
 
-MAX_FILES = int(os.getenv("RANK_FILES_MAX_FILES", "500"))
+MAX_COMPARISONS = int(os.getenv("RANK_FILES_MAX_COMPARISONS", "1000"))
+MAX_COMPARISONS_MESSAGE = f"To protect against excessively slow and/or expensive jobs, the limit is {MAX_COMPARISONS}. You can override this limit by setting the RANK_FILES_MAX_COMPARISONS env var."
 
 
 def main() -> None:
@@ -19,16 +20,20 @@ def main() -> None:
     parser.add_argument("-q", "--quiet", action="store_true", default=False, help="Only print final rankings, no stats or progress bar")
     args = parser.parse_args()
     docs = [FileDocument(p) for p in Path(args.input_dir).iterdir()]
+    estimate = tournament_estimated_comparisons(args.top_k, len(docs))
+    if estimate > MAX_COMPARISONS:
+        raise MaxComparisonsExceededError(f"This job could require {estimate} pairwise comparisons. {MAX_COMPARISONS_MESSAGE}")
     docs.sort(key=lambda d: d.cheap_sort_key())
-    if len(docs) > MAX_FILES:
-        raise ValueError(f"You tried to rank {len(docs)} documents. To protect against excessively slow and/or expensive jobs, the limit is {MAX_FILES}. You can override this limit by setting the RANK_FILES_MAX_FILES env var.")
     cache = default_cache()
     ranker = build_ranker(cache=cache)
     docs = ranker.wrap_for_pairwise_comparison(args.criteria, docs)
-    with tqdm(total=tournament_estimated_comparisons(args.top_k, len(docs)), disable=args.quiet) as pbar:
-        tracker = ComparisonTracker(pbar)
+    with tqdm(total=estimate, disable=args.quiet) as pbar:
+        tracker = ComparisonTracker(max_comparisons=MAX_COMPARISONS, pbar=pbar)
         docs = tracker.wrap(docs)
-        docs = tournament(args.top_k, docs)
+        try:
+            docs = tournament(args.top_k, docs)
+        except MaxComparisonsExceededError as exc:
+            raise MaxComparisonsExceededError(f"This job attempted to use more than the allowed number of pairwise comparisons. {MAX_COMPARISONS_MESSAGE}") from exc
         docs = tracker.unwrap(docs)
         docs = ranker.unwrap(docs)
         if not args.quiet:

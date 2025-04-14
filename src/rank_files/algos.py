@@ -4,6 +4,10 @@ from tqdm import tqdm
 import math
 
 
+class MaxComparisonsExceededError(ValueError):
+    pass
+
+
 @total_ordering
 class ComparisonSpy:
     def __init__(self, val, tracker: "ComparisonTracker") -> None:
@@ -14,13 +18,16 @@ class ComparisonSpy:
         return self.val == other.val
     
     def __lt__(self, other) -> bool:
+        if self.tracker.max_comparisons is not None and self.tracker.total >= self.tracker.max_comparisons:
+            raise MaxComparisonsExceededError()
         self.tracker.inc()
         return self.val < other.val
 
 
 class ComparisonTracker:
-    def __init__(self, pbar: Optional[tqdm] = None) -> None:
+    def __init__(self, max_comparisons: Optional[int] = None, pbar: Optional[tqdm] = None) -> None:
         self.total = 0
+        self.max_comparisons = max_comparisons
         self.pbar = pbar
     
     def wrap(self, items: list) -> list[ComparisonSpy]:

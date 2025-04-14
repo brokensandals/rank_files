@@ -16,7 +16,7 @@ import ollama
 PAIRWISE_SYSTEM_PROMPT = Path(__file__).parent.joinpath("prompts", "pairwise-system.txt").read_text("utf8")
 
 
-class InvalidLlmResponseException(Exception):
+class InvalidLlmResponseError(Exception):
     pass
 
 
@@ -64,7 +64,7 @@ def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str)
         return doc1
     if resp_content == "2":
         return doc2
-    raise InvalidLlmResponseException(f"Model was instructed to respond '1' for {doc1} or '2' for {doc2} but got: {resp_content}")
+    raise InvalidLlmResponseError(f"Model was instructed to respond '1' for {doc1} or '2' for {doc2} but got: {resp_content}")
 
 
 @total_ordering
