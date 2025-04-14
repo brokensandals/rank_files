@@ -1,4 +1,5 @@
 import pytest
+from rank_files.cache import Cache
 from rank_files.ranker import FakeRanker, ModelProvider, build_ranker
 from rank_files.document import StrDocument
 
@@ -28,9 +29,10 @@ def test_ollama_ranker():
     criteria = "The best document is the one with the most spelling errors."
     doc1 = StrDocument("In the long run, were all ded.")
     doc2 = StrDocument("In the long run, we're all dead.")
-    ranker = build_ranker(ModelProvider.OLLAMA)
+    ranker = build_ranker(ModelProvider.OLLAMA, cache=Cache(":memory:"))
     assert ranker.choose_better(criteria, doc1, doc2) is doc1
     assert ranker.choose_better(criteria, doc2, doc1) is doc1
+    assert ranker.cache.total_hits == 1
 
 
 @mark_anthropic
@@ -38,6 +40,7 @@ def test_anthropic_ranker():
     criteria = "The best document is the one with the most spelling errors."
     doc1 = StrDocument("In the long run, were all ded.")
     doc2 = StrDocument("In the long run, we're all dead.")
-    ranker = build_ranker(ModelProvider.ANTHROPIC)
+    ranker = build_ranker(ModelProvider.ANTHROPIC, cache=Cache(":memory:"))
     assert ranker.choose_better(criteria, doc1, doc2) is doc1
     assert ranker.choose_better(criteria, doc2, doc1) is doc1
+    assert ranker.cache.total_hits == 1

@@ -2,9 +2,12 @@ from anthropic import Anthropic
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from functools import total_ordering
+from hashlib import sha256
 from pathlib import Path
+from rank_files.cache import Cache, default_cache
 from rank_files.document import Document
 from typing import Optional, Self
+import json
 import os
 import ollama
 
@@ -82,8 +85,14 @@ class PairwiseWrapper:
 
 
 class Ranker(ABC):
-    @abstractmethod
     def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+        if doc1.cheap_sort_key() > doc2.cheap_sort_key():
+            # This ensures we'll use the same cache entry regardless of the order of arguments.
+            return self.choose_better(criteria, doc2, doc1)
+        return self._choose_better(criteria, doc1, doc2)
+
+    @abstractmethod
+    def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         ...
     
     def wrap_for_pairwise_comparison(self, criteria: str, docs: list[Document]) -> list[PairwiseWrapper]:
@@ -94,63 +103,76 @@ class Ranker(ABC):
 
 
 class FakeRanker(Ranker):
-    def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+    def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         if doc1.read_text() < doc2.read_text():
             return doc1
         return doc2
 
 
 class OllamaRanker(Ranker):
-    def __init__(self, model: str, client: Optional[ollama.Client] = None) -> None:
+    def __init__(self, model: str, cache: Optional[Cache] = None, client: Optional[ollama.Client] = None) -> None:
+        self.cache = cache if cache is not None else Cache(":memory:")
         self.model = model
         self.client = ollama.Client() if client is None else client
 
-    def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+    def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         user_prompt = pairwise_user_prompt(criteria, doc1, doc2)
         messages = [
             {"role": "system", "content": PAIRWISE_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ]
 
-        # Initial testing suggested that whatever Ollama does for prompts that exceed the default context length
-        # (I think it trims the beginning?) leads to poor results. So I try to make the context length long enough.
-        # TODO Currently I'm using a rough heuristic to make sure the context length is long enough
-        #      to hold the full prompt.
-        #      It would be nice to calculate this more exactly; see https://github.com/ollama/ollama/issues/3582
-        #      Ideally I'd also avoid setting it higher than the machine's memory can handle, and do something else
-        #      (error out? partially replace the documents with summaries? some other technique?) in that case.
-        options = {
-            "num_predict": 1,
-            "num_ctx": len(str(messages)) // 2,
-            "temperature": 0,
-        }
-        resp = self.client.chat(model=self.model, messages=messages, options=options)
-        return extract_pairwise_response(doc1, doc2, resp.message.content)
+        cache_key = sha256(json.dumps({"provider": "ollama", "model": self.model, "messages": messages}).encode()).hexdigest()
+        content = self.cache.fetch(cache_key)
+        if content is None:
+            # Initial testing suggested that whatever Ollama does for prompts that exceed the default context length
+            # (I think it trims the beginning?) leads to poor results. So I try to make the context length long enough.
+            # TODO Currently I'm using a rough heuristic to make sure the context length is long enough
+            #      to hold the full prompt.
+            #      It would be nice to calculate this more exactly; see https://github.com/ollama/ollama/issues/3582
+            #      Ideally I'd also avoid setting it higher than the machine's memory can handle, and do something else
+            #      (error out? partially replace the documents with summaries? some other technique?) in that case.
+            options = {
+                "num_predict": 1,
+                "num_ctx": len(str(messages)) // 2,
+                "temperature": 0,
+            }
+            resp = self.client.chat(model=self.model, messages=messages, options=options)
+            content = resp.message.content
+            self.cache.put(cache_key, content)
+        return extract_pairwise_response(doc1, doc2, content)
 
 
 class AnthropicRanker(Ranker):
-    def __init__(self, model: str, client: Optional[Anthropic] = None) -> None:
+    def __init__(self, model: str, cache: Cache, client: Optional[Anthropic] = None) -> None:
+        self.cache = cache if cache is not None else Cache(":memory:")
         self.model = model
         self.client = Anthropic() if client is None else client
     
-    def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+    def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         user_prompt = pairwise_user_prompt(criteria, doc1, doc2)
-        resp = self.client.messages.create(
-            model=self.model,
-            max_tokens=10, # I tried 1, but for some reason that results in an empty content array in the response,
-            system=PAIRWISE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}]
-        )
-        return extract_pairwise_response(doc1, doc2, resp.content[0].text)
+        cache_key = sha256(json.dumps({"provider": "anthropic", "model": self.model, "system_prompt": PAIRWISE_SYSTEM_PROMPT, "user_prompt": user_prompt}).encode()).hexdigest()
+        content = self.cache.fetch(cache_key)
+        if content is None:
+            resp = self.client.messages.create(
+                model=self.model,
+                max_tokens=10, # I tried 1, but for some reason that results in an empty content array in the response,
+                system=PAIRWISE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            content = resp.content[0].text
+            self.cache.put(cache_key, content)
+        return extract_pairwise_response(doc1, doc2, content)
 
 
-def build_ranker(provider: Optional[ModelProvider] = None, model: Optional[str] = None) -> Ranker:
+def build_ranker(provider: Optional[ModelProvider] = None, model: Optional[str] = None, cache: Optional[Cache] = None) -> Ranker:
     provider = default_provider() if provider is None else provider
     model = default_model(provider) if model is None else model
     if provider == ModelProvider.FAKE:
         return FakeRanker()
+    cache = default_cache() if cache is None else cache
     if provider == ModelProvider.OLLAMA:
-        return OllamaRanker(model)
+        return OllamaRanker(model, cache)
     if provider == ModelProvider.ANTHROPIC:
-        return AnthropicRanker(model)
+        return AnthropicRanker(model, cache)
     raise ValueError(f"Unsupported provider {provider}") # should be unreachable

@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from pathlib import Path
+from rank_files.cache import default_cache
 from rank_files.document import FileDocument
 from rank_files.ranker import build_ranker
 from rank_files.algos import tournament, tournament_estimated_comparisons, ComparisonTracker
@@ -18,9 +19,11 @@ def main() -> None:
     parser.add_argument("-q", "--quiet", action="store_true", default=False, help="Only print final rankings, no stats or progress bar")
     args = parser.parse_args()
     docs = [FileDocument(p) for p in Path(args.input_dir).iterdir()]
+    docs.sort(key=lambda d: d.cheap_sort_key())
     if len(docs) > MAX_FILES:
         raise ValueError(f"You tried to rank {len(docs)} documents. To protect against excessively slow and/or expensive jobs, the limit is {MAX_FILES}. You can override this limit by setting the RANK_FILES_MAX_FILES env var.")
-    ranker = build_ranker()
+    cache = default_cache()
+    ranker = build_ranker(cache=cache)
     docs = ranker.wrap_for_pairwise_comparison(args.criteria, docs)
     with tqdm(total=tournament_estimated_comparisons(args.top_k, len(docs)), disable=args.quiet) as pbar:
         tracker = ComparisonTracker(pbar)
@@ -29,6 +32,6 @@ def main() -> None:
         docs = tracker.unwrap(docs)
         docs = ranker.unwrap(docs)
         if not args.quiet:
-            print(f"(Total comparisons: {tracker.total})")
+            print(f"(Total comparisons: {tracker.total}. Cache hits: {cache.total_hits})")
         for doc in docs:
             print(doc)

@@ -11,7 +11,11 @@ class Document(ABC):
     @abstractmethod
     def read_bytes(self) -> bytes:
         ...
-    
+
+    @abstractmethod
+    def cheap_sort_key(self) -> str:
+        ...
+
     def __eq__(self, other: Self) -> bool:
         return self.read_bytes() == other.read_bytes()
 
@@ -26,6 +30,9 @@ class FileDocument(Document):
     
     def read_bytes(self) -> bytes:
         return self.path.read_bytes()
+    
+    def cheap_sort_key(self) -> str:
+        return str(self.path)
 
     def __str__(self) -> str:
         return self.path.name
@@ -42,6 +49,9 @@ class StrDocument(Document):
     
     def read_bytes(self) -> bytes:
         return self.text.encode("utf8")
+    
+    def cheap_sort_key(self) -> str:
+        return self.read_text()
     
     def __str__(self) -> str:
         return self.text
