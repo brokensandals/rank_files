@@ -28,7 +28,7 @@ First, put all the files you want to rank into one folder. Basic usage of the to
 rank-files 'Each document is a book review. The best document is the book review that contains the most thoughtful original content, as opposed to just summarizing or quoting the book.' path/to/input-folder -k 10
 ```
 
-However, you'll probably need extra setup based on which model and model provider you want to use.
+However, you'll probably need extra setup based on which model and model provider you want to use, as described in the following sections.
 
 ## Ollama
 
