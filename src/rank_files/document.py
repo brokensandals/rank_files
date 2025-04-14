@@ -4,16 +4,23 @@ from typing import Self
 
 
 class Document(ABC):
+    """Represents a document that we want to rank."""
     @abstractmethod
     def read_text(self) -> str:
+        """Get the full content of the document as text."""
         ...
     
     @abstractmethod
     def read_bytes(self) -> bytes:
+        """Get the full content of the document as bytes."""
         ...
 
     @abstractmethod
     def cheap_sort_key(self) -> str:
+        """
+        Return a sortable identifier for the document.
+        This is used for ensuring that documents are processed in a deterministic order.
+        """
         ...
 
     def __eq__(self, other: Self) -> bool:
@@ -21,6 +28,7 @@ class Document(ABC):
 
 
 class FileDocument(Document):
+    """The main Document implementation."""
     def __init__(self, path: Path):
         super().__init__()
         self.path = path
@@ -38,8 +46,8 @@ class FileDocument(Document):
         return self.path.name
 
 
-# Useful for unit tests
 class StrDocument(Document):
+    """A Document implementation used in unit tests."""
     def __init__(self, text: str):
         super().__init__()
         self.text = text

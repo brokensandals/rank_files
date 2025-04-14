@@ -17,20 +17,27 @@ PAIRWISE_SYSTEM_PROMPT = Path(__file__).parent.joinpath("prompts", "pairwise-sys
 
 
 class InvalidLlmResponseError(Exception):
+    """Raised when an LLM does not follow instructions and its output cannot be understood."""
     pass
 
 
 class ModelProvider(StrEnum):
+    """Enumeration of the supported model APIs."""
     FAKE = "fake"
     OLLAMA = "ollama"
     ANTHROPIC = "anthropic"
 
 
 def default_provider() -> ModelProvider:
+    """Returns a ModelProvider based on the RANK_FILES_PROVIDER env var, defaulting to ollama."""
     return ModelProvider(os.getenv("RANK_FILES_PROVIDER", "ollama"))
 
 
 def default_model(provider: ModelProvider) -> str:
+    """
+    Returns the model name configured in the RANK_FILES_MODEL env var, or a default based on
+    the specified provider.
+    """
     model = os.getenv("RANK_FILES_MODEL")
     if model is not None:
         return model
@@ -49,10 +56,15 @@ def default_model(provider: ModelProvider) -> str:
 #      (a) how much this really protects against or
 #      (b) how much model performance is harmed by superfluous escaping.
 def escape_prompt_part(text: str) -> str:
+    """Replaces angle brackets in the text with escape sequences."""
     return text.replace("<", "&lt;").replace(">", "&gt;")
 
 
 def pairwise_user_prompt(criteria: str, doc1: Document, doc2: Document) -> str:
+    """
+    Returns a prompt containing the given criteria and contents of the given documents.
+    Meant to be used in conjunction with the PAIRWISE_SYSTEM_PROMPT.
+    """
     c = escape_prompt_part(criteria)
     t1 = escape_prompt_part(doc1.read_text())
     t2 = escape_prompt_part(doc2.read_text())
@@ -60,6 +72,10 @@ def pairwise_user_prompt(criteria: str, doc1: Document, doc2: Document) -> str:
 
 
 def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str) -> Document:
+    """
+    Given the response from invoking a model with paiwise_user_prompt, determines which document
+    the model chose as better.
+    """
     if resp_content == "1":
         return doc1
     if resp_content == "2":
@@ -69,6 +85,10 @@ def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str)
 
 @total_ordering
 class PairwiseWrapper:
+    """
+    An object which determines whether it is less-than/greater-than other objects by invoking
+    a Ranker. Instances are created by Ranker.wrap_for_pairwise_comparison().
+    """
     def __init__(self, wrapped: Document, ranker: "Ranker", criteria: str) -> None:
         self.wrapped = wrapped
         self.ranker = ranker
@@ -85,7 +105,13 @@ class PairwiseWrapper:
 
 
 class Ranker(ABC):
+    """Base class for document rankers."""
+
     def choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+        """
+        Given some criteria and a pair of documents, returns the document which seems better
+        according to the given criteria.
+        """
         if doc1.cheap_sort_key() > doc2.cheap_sort_key():
             # This ensures we'll use the same cache entry regardless of the order of arguments.
             return self.choose_better(criteria, doc2, doc1)
@@ -93,16 +119,26 @@ class Ranker(ABC):
 
     @abstractmethod
     def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
+        """
+        Called by choose_better().
+        Subclasses should implement logic for determining the better document in this method.
+        """
         ...
     
     def wrap_for_pairwise_comparison(self, criteria: str, docs: list[Document]) -> list[PairwiseWrapper]:
+        """
+        Wraps each document so that less-than/greater-than operations are resolved by calling
+        .choose_better() on this Ranker instance with the given criteria.
+        """
         return [PairwiseWrapper(doc, self, criteria) for doc in docs]
     
     def unwrap(self, items: list[PairwiseWrapper]) -> list[Document]:
+        """Call this on the result of wrap_for_pairwise_comparison() to get back the originals."""
         return [item.wrapped for item in items]
 
 
 class FakeRanker(Ranker):
+    """A Ranker for testing purposes. It compares document text lexicographically."""
     def _choose_better(self, criteria: str, doc1: Document, doc2: Document) -> Document:
         if doc1.read_text() < doc2.read_text():
             return doc1
@@ -110,6 +146,11 @@ class FakeRanker(Ranker):
 
 
 class OllamaRanker(Ranker):
+    """
+    A Ranker that invokes Ollama.
+
+    Responses are cached using the model name and a hash of the prompt.
+    """
     def __init__(self, model: str, cache: Optional[Cache] = None, client: Optional[ollama.Client] = None) -> None:
         self.cache = cache if cache is not None else Cache(":memory:")
         self.model = model
@@ -144,6 +185,11 @@ class OllamaRanker(Ranker):
 
 
 class AnthropicRanker(Ranker):
+    """
+    A Ranker that invokes the Anthropic API.
+
+    Responses are cached using the model name and a hash of the prompt.
+    """
     def __init__(self, model: str, cache: Cache, client: Optional[Anthropic] = None) -> None:
         self.cache = cache if cache is not None else Cache(":memory:")
         self.model = model
@@ -166,6 +212,10 @@ class AnthropicRanker(Ranker):
 
 
 def build_ranker(provider: Optional[ModelProvider] = None, model: Optional[str] = None, cache: Optional[Cache] = None) -> Ranker:
+    """
+    Create a Ranker using the given model provider, model, and cache, using configuration or
+    defaults if they are not provided.
+    """
     provider = default_provider() if provider is None else provider
     model = default_model(provider) if model is None else model
     if provider == ModelProvider.FAKE:
