@@ -55,3 +55,9 @@ You will notice a file named `rank-files-cache.sqlite3` created in the current d
 This means that if the tool is interrupted, no important work is lost—you can rerun it again with the same parameters (the criteria must be exactly the same) and it will use the cached results for any comparisons that were already performed.
 
 If you want the cache to go somewhere else, set the `RANK_FILES_CACHE` environment variable to the desired path and filename; or set it to `:memory:` if you don't want it at all.
+
+# Development
+
+You need [uv](https://github.com/astral-sh/uv) installed.
+
+Run tests with `uv run pytest`.
