@@ -68,7 +68,8 @@ def pairwise_user_prompt(criteria: str, doc1: Document, doc2: Document) -> str:
     c = escape_prompt_part(criteria)
     t1 = escape_prompt_part(doc1.read_text())
     t2 = escape_prompt_part(doc2.read_text())
-    return f"<criteria>{c}</criteria>\n<document-1>{t1}</document-1>\n<document-2>{t2}</document-2>"
+    extra = "\nRemember, you must respond with \"1\" or \"2\" and nothing else."
+    return f"<criteria>{c}</criteria>\n<document-1>{t1}</document-1>\n<document-2>{t2}</document-2>{extra}"
 
 
 def extract_pairwise_response(doc1: Document, doc2: Document, resp_content: str) -> Document:
