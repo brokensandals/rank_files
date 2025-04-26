@@ -138,4 +138,4 @@ def tournament_estimated_comparisons(k: int, n: int) -> int:
         return 0
     k = min(k, n)
     # TODO: is it possible to give a tighter bound than this?
-    return n-1 + math.ceil((k-1)*(math.log2(n)))
+    return n-1 + (k-1)*(math.ceil(math.log2(n))-1)
